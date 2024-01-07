@@ -1,0 +1,144 @@
+clc;clearvars;
+%% variables
+x_min = 0; x_max = 1;
+P_e = 25;
+%% calculate
+for m = 2:7
+    deltaX = 1/(2^m);
+    numgrids = (x_max-x_min)/deltaX +1;
+    coeff = 1/(P_e*deltaX);
+    % domain = x_min:deltaX:x_max;
+    domain  = log(x_min:deltaX:x_max);
+    phi_analytic = zeros(numgrids,1);
+    for i = 1:numgrids
+        phi_analytic(i) = analytic_sol(x_min+(i-1)*deltaX , P_e);
+    end
+
+    phi = zeros(numgrids,1);
+    phi(end) = 1;
+    phi_centered = centered(phi,coeff);
+    phi_FOUW = FOUW(phi,coeff);
+    phi_SOUW = SOUW(phi,coeff);
+     
+    %plots
+    figure;
+    %plot(domain, phi_analytic);
+    plot(domain,log(phi_analytic));
+    xlabel("Domain");
+    ylabel("solution");
+    title("Convergence plot at m = " + m);
+    hold on;
+    plot(domain, log(phi_centered));
+    plot(domain,log(phi_FOUW));
+    plot(domain,log(phi_SOUW));
+    %plot(domain,phi_centered);
+    %plot(domain,phi_FOUW);
+    %plot(domain,phi_SOUW);
+    legend({"phi-analytic","phi-centered","phi-FOUW","phi-SOUW"});
+    hold off;
+
+
+end
+
+
+
+
+
+
+
+%% functions
+function [output]  = centered(phi,coeff)
+           coeff = 2*coeff;
+           output = phi;
+           a = ones(size(phi,1)-2,1);
+           b = ones(size(phi,1)-2,1);
+           c = ones(size(phi,1)-2,1);
+           d = zeros(size(phi,1)-2,1);
+           b(end) =0;c(1)=0;
+           d(1) = output(1)*(coeff+1);d(end) = output(end)*(coeff-1);
+           a = a*(2*coeff);
+           b = b*(coeff-1);
+           c = c*(coeff+1);
+           
+           output(2:size(phi)-1) = TDMA(a,b,c,d,output(2:size(phi)-1));
+           
+end
+
+function [output] = centered_matrix(phi,coeff)
+       coeff = 2*coeff;
+       output = phi;
+       A = zeros(size(phi)-2);
+       d = zeros(size(A,1),1);
+       d(1) = (coeff+1)*phi(1); d(end) = (coeff-1)*phi(end);
+       for i =1:size(A,1)
+           A(i,i)= 2*coeff;
+           if(i-1>=1)
+               A(i,i-1) = -(coeff+1);
+           end
+           if(i+1<= size(A,1))
+               A(i,i+1) = -(coeff-1);
+           end
+
+       end
+       output(2:size(phi)-1) = A\d;
+end
+
+function [output] = FOUW(phi, coeff)
+output = phi;
+a = ones(size(phi,1)-2,1);
+b = ones(size(phi,1)-2,1);
+c = ones(size(phi,1)-2,1);
+d = zeros(size(phi,1)-2,1);
+b(end) =0;c(1)=0;
+d(1) = phi(1)*(coeff+1);d(end) = phi(end)*(coeff);
+
+a = a*(2*coeff+1);
+b = b*(coeff);
+c = c*(1+coeff);
+
+output(2:size(phi)-1) = TDMA(a,b,c,d,output(2:size(phi)-1));
+
+      
+end
+
+
+function [output] = SOUW(phi,coeff)
+      coeff = 2*coeff;
+      output =phi;
+      A = zeros(size(phi,1)-2);
+      d = zeros(size(A,1),1);
+      d(1) = phi(1)*(4+coeff)-phi(1);d(2) =-phi(1);
+      d(end) = phi(end)*(coeff);
+      for i = 1:size(A,1)
+          A(i,i) = 2*coeff+3;
+          if(i-1>=1)
+              A(i,i-1) = -(coeff+4);
+          end
+          if(i+1 <= size(A,1))
+              A(i,i+1) = -(coeff);
+          end
+          if(i-2 >=1)
+              A(i,i-2) = 1;
+          end
+      end
+      output(2:size(phi,1)-1) = A\d;
+end
+
+
+function output = analytic_sol(gridPosition,P_e)
+     output = (exp(P_e*gridPosition)-1)/(exp(P_e)-1);
+end
+
+function [X] =  TDMA(a,b,c,d,X) %a-main diagonal,b-ud, c-ld ,d-const, X-functionMAt, a =b+c
+      P = zeros(size(a));
+      Q = zeros(size(a));
+      P(1) = b(1)/a(1);Q(1)= d(1)/a(1);
+      for i =2:size(a)
+          P(i) = b(i)/(a(i)-c(i)*P(i-1));
+          Q(i) = (d(i)+c(i)*Q(i-1))/((a(i)-c(i)*P(i-1)));
+      end
+      X(end) = Q(end);
+      for i = size(a)-1:-1:1
+          X(i) = P(i)*X(i+1)+Q(i); 
+      end
+end
